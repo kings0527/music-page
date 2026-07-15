@@ -9,8 +9,10 @@ const SHELL_FILES = [
   "./app.js",
   "./player-logic.js",
   "./lyrics-timeline.js",
+  "./lyrics-controller.js",
   "./cache-client.js",
   "./cache-logic.js",
+  "./cache-controller.js",
   "./tracks.json",
 ];
 
@@ -97,8 +99,6 @@ async function handleMessage(message) {
       return cacheTrack(message);
     case "CHECK_TRACK":
       return checkTrack(message);
-    case "REMOVE_TRACK":
-      return removeTrack(message);
     default:
       throw new Error("未知的离线缓存操作");
   }
@@ -129,7 +129,9 @@ async function networkFirst(request) {
 
 async function handleAudioRequest(request) {
   const cache = await caches.open(AUDIO_CACHE);
-  const cached = await cache.match(request.url);
+  const cacheUrl = new URL(request.url);
+  cacheUrl.searchParams.delete("music-reload");
+  const cached = await cache.match(cacheUrl.href);
   if (!cached) {
     return fetch(request);
   }
@@ -201,10 +203,16 @@ async function checkTrack(message) {
   const cached = await cache.match(url.href);
   const expected = { bytes: message.bytes, sha256: message.sha256 };
   const valid = await cachedTrackIsValid(cached, expected);
+  const repairRequired = Boolean(cached && !valid);
   if (cached && !valid) {
     await cache.delete(url.href);
   }
-  return { ok: true, cached: valid, bytes: valid ? message.bytes : 0 };
+  return {
+    ok: true,
+    cached: valid,
+    bytes: valid ? message.bytes : 0,
+    repairRequired,
+  };
 }
 
 async function cacheTrack(message) {
@@ -242,11 +250,4 @@ async function cacheTrack(message) {
     }
   }
   return { ok: true, cached: true, bytes: message.bytes };
-}
-
-async function removeTrack(message) {
-  const url = validateMessageTrack(message);
-  const cache = await caches.open(AUDIO_CACHE);
-  await cache.delete(url.href);
-  return { ok: true, cached: false, bytes: 0 };
 }

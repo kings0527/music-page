@@ -37,7 +37,7 @@ jobs:
       - name: Prepare static site
         run: |
           mkdir -p _site/audio _site/lyrics
-          cp index.html styles.css app.js player-logic.js lyrics-timeline.js cache-client.js cache-logic.js service-worker.js tracks.json _site/
+          cp index.html styles.css app.js player-logic.js lyrics-timeline.js lyrics-controller.js cache-client.js cache-logic.js cache-controller.js service-worker.js tracks.json _site/
           cp -R audio/. _site/audio/
           cp -R lyrics/. _site/lyrics/
 

@@ -15,8 +15,10 @@ class MusicPageTests(unittest.TestCase):
             "app.js",
             "player-logic.js",
             "lyrics-timeline.js",
+            "lyrics-controller.js",
             "cache-client.js",
             "cache-logic.js",
+            "cache-controller.js",
             "service-worker.js",
             "tracks.json",
             ".github/workflows/pages.yml",
@@ -119,17 +121,23 @@ class MusicPageTests(unittest.TestCase):
         ):
             self.assertTrue((ROOT / relative_path).is_file())
 
-        app = (ROOT / "app.js").read_text(encoding="utf-8")
+        cache_controller = (ROOT / "cache-controller.js").read_text(encoding="utf-8")
         worker = (ROOT / "service-worker.js").read_text(encoding="utf-8")
-        self.assertIn("registerServiceWorker", app)
+        self.assertIn("registerServiceWorker", cache_controller)
         self.assertIn('case "CACHE_TRACK"', worker)
         self.assertIn('case "CHECK_TRACK"', worker)
+        self.assertIn("repairRequired", worker)
+        self.assertIn("result.repairRequired", cache_controller)
+        self.assertIn('searchParams.set("music-reload"', cache_controller)
+        self.assertIn('searchParams.delete("music-reload"', worker)
         self.assertIn("parseByteRange", worker)
         self.assertIn("Content-Range", worker)
 
     def test_page_exposes_modes_keyboard_cache_and_synchronized_lyrics(self) -> None:
         html = (ROOT / "index.html").read_text(encoding="utf-8")
         app = (ROOT / "app.js").read_text(encoding="utf-8")
+        cache_controller = (ROOT / "cache-controller.js").read_text(encoding="utf-8")
+        lyrics_controller = (ROOT / "lyrics-controller.js").read_text(encoding="utf-8")
         for mode in ("order", "loop", "shuffle"):
             self.assertIn(f'data-play-mode="{mode}"', html)
         self.assertIn('id="cache-track"', html)
@@ -137,9 +145,9 @@ class MusicPageTests(unittest.TestCase):
         self.assertIn('id="master-download"', html)
         self.assertIn('addEventListener("keydown"', app)
         self.assertIn("shouldHandlePlaybackShortcut", app)
-        self.assertIn('addEventListener("timeupdate"', app)
-        self.assertIn("findActiveCueIndex", app)
-        self.assertIn('"CACHE_TRACK"', app)
+        self.assertIn('addEventListener("timeupdate"', lyrics_controller)
+        self.assertIn("findActiveCueIndex", lyrics_controller)
+        self.assertIn('"CACHE_TRACK"', cache_controller)
 
     def test_pages_workflow_downloads_lfs_and_deploys(self) -> None:
         workflow = (ROOT / ".github/workflows/pages.yml").read_text(encoding="utf-8")
@@ -151,8 +159,10 @@ class MusicPageTests(unittest.TestCase):
         self.assertIn("node --test tests/*.test.mjs", workflow)
         for asset in (
             "lyrics-timeline.js",
+            "lyrics-controller.js",
             "cache-client.js",
             "cache-logic.js",
+            "cache-controller.js",
             "service-worker.js",
         ):
             self.assertIn(asset, workflow)

@@ -8,6 +8,7 @@ import {
   createShuffleQueue,
   formatDuration,
   getNextTrackIndex,
+  navigatePlayback,
   shouldHandlePlaybackShortcut,
 } from "../player-logic.js";
 
@@ -62,6 +63,38 @@ test("shuffle playback consumes its queue and repeats a single-track playlist", 
       shuffleQueue: [],
     }),
     { index: 0, shuffleQueue: [] },
+  );
+});
+
+test("manual shuffle navigation uses the shuffle bag and can return through history", () => {
+  const forward = navigatePlayback({
+    direction: 1,
+    mode: "shuffle",
+    currentIndex: 1,
+    trackCount: 4,
+    shuffleQueue: [3, 0, 2],
+    shuffleHistory: [],
+  });
+  assert.deepEqual(forward, {
+    index: 3,
+    shuffleQueue: [0, 2],
+    shuffleHistory: [1],
+  });
+
+  assert.deepEqual(
+    navigatePlayback({
+      direction: -1,
+      mode: "shuffle",
+      currentIndex: 3,
+      trackCount: 4,
+      shuffleQueue: forward.shuffleQueue,
+      shuffleHistory: forward.shuffleHistory,
+    }),
+    {
+      index: 1,
+      shuffleQueue: [3, 0, 2],
+      shuffleHistory: [],
+    },
   );
 });
 

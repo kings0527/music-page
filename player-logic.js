@@ -67,6 +67,63 @@ export function advancePlayback({
   return { index, shuffleQueue: remainingQueue };
 }
 
+export function navigatePlayback({
+  direction,
+  mode,
+  currentIndex,
+  trackCount,
+  shuffleQueue = [],
+  shuffleHistory = [],
+  random = Math.random,
+}) {
+  if (trackCount <= 0) {
+    return { index: null, shuffleQueue: [], shuffleHistory: [] };
+  }
+
+  if (mode !== "shuffle") {
+    const step = direction < 0 ? -1 : 1;
+    return {
+      index: (currentIndex + step + trackCount) % trackCount,
+      shuffleQueue: [],
+      shuffleHistory: [],
+    };
+  }
+
+  const validHistory = shuffleHistory.filter(
+    (index) => index >= 0 && index < trackCount,
+  );
+  while (validHistory.at(-1) === currentIndex) {
+    validHistory.pop();
+  }
+
+  if (direction < 0 && validHistory.length > 0) {
+    const previousIndex = validHistory.pop();
+    return {
+      index: previousIndex,
+      shuffleQueue: [
+        currentIndex,
+        ...shuffleQueue.filter(
+          (index) => index !== currentIndex && index !== previousIndex,
+        ),
+      ],
+      shuffleHistory: validHistory,
+    };
+  }
+
+  const next = advancePlayback({
+    mode,
+    currentIndex,
+    trackCount,
+    shuffleQueue,
+    random,
+  });
+  return {
+    ...next,
+    shuffleHistory:
+      next.index === null ? validHistory : [...validHistory, currentIndex],
+  };
+}
+
 const INTERACTIVE_TAGS = new Set([
   "A",
   "AUDIO",
