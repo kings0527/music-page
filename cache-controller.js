@@ -15,7 +15,6 @@ export function createAudioCacheController({
   let generation = 0;
   let repairedSha = null;
   let cacheTriggerController = null;
-  let pausedCacheTimer = null;
   const downloads = new Map();
   const sourceChecks = new Map();
 
@@ -206,10 +205,6 @@ export function createAudioCacheController({
   function clearCacheTrigger() {
     cacheTriggerController?.abort();
     cacheTriggerController = null;
-    if (pausedCacheTimer !== null) {
-      window.clearTimeout(pausedCacheTimer);
-      pausedCacheTimer = null;
-    }
   }
 
   function scheduleAutoCache(currentGeneration) {
@@ -217,6 +212,7 @@ export function createAudioCacheController({
     cacheTriggerController = new AbortController();
     const { signal } = cacheTriggerController;
     let started = false;
+    let hasPlayed = false;
 
     const start = () => {
       if (started || currentGeneration !== generation) {
@@ -225,6 +221,14 @@ export function createAudioCacheController({
       started = true;
       clearCacheTrigger();
       void cacheAll(currentGeneration);
+    };
+    const markPlayed = () => {
+      hasPlayed = true;
+    };
+    const startAfterPlayedPause = () => {
+      if (hasPlayed) {
+        start();
+      }
     };
     const startNearEnd = () => {
       if (
@@ -237,14 +241,9 @@ export function createAudioCacheController({
     };
 
     media.addEventListener("canplaythrough", start, { once: true, signal });
-    media.addEventListener("pause", start, { once: true, signal });
+    media.addEventListener("playing", markPlayed, { once: true, signal });
+    media.addEventListener("pause", startAfterPlayedPause, { signal });
     media.addEventListener("timeupdate", startNearEnd, { signal });
-    pausedCacheTimer = window.setTimeout(() => {
-      pausedCacheTimer = null;
-      if (media.paused) {
-        start();
-      }
-    }, 2000);
   }
 
   function setSources(nextSources, nextPlaybackSource) {
