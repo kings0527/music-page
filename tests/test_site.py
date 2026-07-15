@@ -56,8 +56,9 @@ class MusicPageTests(unittest.TestCase):
     def test_pages_workflow_downloads_lfs_and_deploys(self) -> None:
         workflow = (ROOT / ".github/workflows/pages.yml").read_text(encoding="utf-8")
         self.assertIn("lfs: true", workflow)
-        self.assertIn("actions/configure-pages@v5", workflow)
-        self.assertIn("actions/upload-pages-artifact@v3", workflow)
+        self.assertIn("actions/checkout@v7", workflow)
+        self.assertIn("actions/configure-pages@v6", workflow)
+        self.assertIn("actions/upload-pages-artifact@v5", workflow)
         self.assertIn("actions/deploy-pages@v5", workflow)
         self.assertIn("node --test tests/player_logic.test.mjs", workflow)
 
