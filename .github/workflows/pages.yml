@@ -32,13 +32,14 @@ jobs:
       - name: Validate player and playlist
         run: |
           python3 -m unittest -v tests/test_site.py
-          node --test tests/player_logic.test.mjs
+          node --test tests/*.test.mjs
 
       - name: Prepare static site
         run: |
-          mkdir -p _site/audio
-          cp index.html styles.css app.js player-logic.js tracks.json _site/
+          mkdir -p _site/audio _site/lyrics
+          cp index.html styles.css app.js player-logic.js lyrics-timeline.js cache-client.js cache-logic.js service-worker.js tracks.json _site/
           cp -R audio/. _site/audio/
+          cp -R lyrics/. _site/lyrics/
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5

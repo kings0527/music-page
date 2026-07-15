@@ -2,14 +2,86 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  advancePlayback,
   attemptPlayback,
   classifyPlaybackError,
+  createShuffleQueue,
   formatDuration,
+  getNextTrackIndex,
+  shouldHandlePlaybackShortcut,
 } from "../player-logic.js";
 
 
 test("duration matches the whole seconds shown by native audio controls", () => {
   assert.equal(formatDuration(238.64), "3:58");
+});
+
+test("sequential playback advances once and stops after the final track", () => {
+  assert.equal(
+    getNextTrackIndex({ mode: "order", currentIndex: 0, trackCount: 3 }),
+    1,
+  );
+  assert.equal(
+    getNextTrackIndex({ mode: "order", currentIndex: 2, trackCount: 3 }),
+    null,
+  );
+});
+
+test("loop playback wraps from the final track to the first", () => {
+  assert.equal(
+    getNextTrackIndex({ mode: "loop", currentIndex: 2, trackCount: 3 }),
+    0,
+  );
+});
+
+test("shuffle playback visits every other track once before reshuffling", () => {
+  const queue = createShuffleQueue({
+    trackCount: 4,
+    currentIndex: 1,
+    random: () => 0.5,
+  });
+
+  assert.deepEqual(queue.toSorted((left, right) => left - right), [0, 2, 3]);
+});
+
+test("shuffle playback consumes its queue and repeats a single-track playlist", () => {
+  assert.deepEqual(
+    advancePlayback({
+      mode: "shuffle",
+      currentIndex: 0,
+      trackCount: 3,
+      shuffleQueue: [2, 1],
+    }),
+    { index: 2, shuffleQueue: [1] },
+  );
+  assert.deepEqual(
+    advancePlayback({
+      mode: "shuffle",
+      currentIndex: 0,
+      trackCount: 1,
+      shuffleQueue: [],
+    }),
+    { index: 0, shuffleQueue: [] },
+  );
+});
+
+test("space toggles playback only from a non-interactive page target", () => {
+  assert.equal(
+    shouldHandlePlaybackShortcut({ code: "Space", targetTagName: "MAIN" }),
+    true,
+  );
+  assert.equal(
+    shouldHandlePlaybackShortcut({ code: "Space", targetTagName: "BUTTON" }),
+    false,
+  );
+  assert.equal(
+    shouldHandlePlaybackShortcut({
+      code: "Space",
+      targetTagName: "MAIN",
+      repeat: true,
+    }),
+    false,
+  );
 });
 
 test("autoplay policy failures expose the click-to-play fallback", () => {

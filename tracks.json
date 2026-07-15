@@ -1,13 +1,35 @@
 {
-  "version": 1,
+  "version": 2,
   "tracks": [
     {
       "id": "hou-lai-wo-men-dou-cheng-wei-le-zi-ji",
       "title": "后来我们都成为了自己",
       "subtitle": "女声版",
-      "file": "audio/后来我们都成为了自己.wav",
-      "format": "WAV",
-      "duration_seconds": 238.64
+      "format": "AAC / MP3",
+      "duration_seconds": 238.64,
+      "sources": [
+        {
+          "file": "audio/后来我们都成为了自己-stream.m4a",
+          "type": "audio/mp4",
+          "bitrate_kbps": 160,
+          "bytes": 4886135,
+          "sha256": "f36d6095d144ad91fe7795ce4fed1e2b84b752fd124bc8ed6e56fa3c5ddcaf8a"
+        },
+        {
+          "file": "audio/后来我们都成为了自己-stream.mp3",
+          "type": "audio/mpeg",
+          "bitrate_kbps": 192,
+          "bytes": 5728940,
+          "sha256": "4147f0cde46cd97001a9eb4ddce0feb63f98f300159c306a13735258ee3ee96b"
+        }
+      ],
+      "lyrics": "lyrics/后来我们都成为了自己.json",
+      "master": {
+        "file": "audio/后来我们都成为了自己.wav",
+        "type": "audio/wav",
+        "bytes": 45819052,
+        "sha256": "7aed0113235175ab8dd0b5c36c4ea156cc01be995f20d906cddc1d2eeb8bc775"
+      }
     }
   ]
 }

@@ -30,13 +30,46 @@
           <span>点击播放</span>
         </button>
 
-        <audio id="player" controls autoplay preload="auto" playsinline></audio>
+        <audio
+          id="player"
+          aria-label="音乐播放器"
+          controls
+          autoplay
+          preload="metadata"
+          playsinline
+        ></audio>
 
         <div class="transport" aria-label="播放切换">
           <button id="previous-track" type="button" aria-label="上一首">上一首</button>
           <p id="playback-status" role="status" aria-live="polite">正在尝试自动播放…</p>
           <button id="next-track" type="button" aria-label="下一首">下一首</button>
         </div>
+
+        <div class="playback-tools">
+          <div class="mode-switch" role="group" aria-label="播放模式">
+            <button type="button" data-play-mode="order" aria-pressed="true">顺序</button>
+            <button type="button" data-play-mode="loop" aria-pressed="false">循环</button>
+            <button type="button" data-play-mode="shuffle" aria-pressed="false">随机</button>
+          </div>
+          <div class="file-actions">
+            <button id="cache-track" type="button" disabled>缓存本曲</button>
+            <a id="master-download" href="#" download hidden>下载 WAV 母版</a>
+          </div>
+        </div>
+        <div class="helper-row">
+          <span>空格键：播放 / 暂停</span>
+          <span id="cache-status" role="status" aria-live="polite">尚未缓存</span>
+        </div>
+
+        <section class="lyrics-section" aria-labelledby="lyrics-title">
+          <div class="section-heading">
+            <h2 id="lyrics-title">同步歌词</h2>
+            <span id="lyrics-status">正在加载…</span>
+          </div>
+          <div id="lyrics" class="lyrics" tabindex="0" aria-label="同步歌词">
+            <p class="lyrics-placeholder">歌词正在加载…</p>
+          </div>
+        </section>
 
         <section class="playlist-section" aria-labelledby="playlist-title">
           <div class="section-heading">
