@@ -5,10 +5,6 @@ export function formatDuration(durationSeconds) {
   return `${minutes}:${seconds}`;
 }
 
-export function isCurrentPlaybackRequest(requestId, currentRequestId) {
-  return requestId === currentRequestId;
-}
-
 export function classifyPlaybackError(errorName, isAutoplayAttempt) {
   if (errorName === "AbortError") {
     return { kind: "ignored", showGate: false, message: "" };
@@ -29,4 +25,21 @@ export function classifyPlaybackError(errorName, isAutoplayAttempt) {
     showGate: false,
     message: "暂时无法播放，请稍后重试",
   };
+}
+
+export async function attemptPlayback({
+  play,
+  requestId,
+  getCurrentRequestId,
+  isAutoplayAttempt,
+}) {
+  try {
+    await play();
+    return { kind: "started", showGate: false, message: "" };
+  } catch (error) {
+    if (requestId !== getCurrentRequestId()) {
+      return { kind: "ignored", showGate: false, message: "" };
+    }
+    return classifyPlaybackError(error.name, isAutoplayAttempt);
+  }
 }

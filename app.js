@@ -1,7 +1,6 @@
 import {
-  classifyPlaybackError,
+  attemptPlayback,
   formatDuration,
-  isCurrentPlaybackRequest,
 } from "./player-logic.js";
 
 const player = document.querySelector("#player");
@@ -43,21 +42,19 @@ function selectTrack(index) {
 
 async function requestPlayback(isAutoplayAttempt = false) {
   const requestId = ++playbackRequestId;
-  try {
-    await player.play();
-  } catch (error) {
-    if (!isCurrentPlaybackRequest(requestId, playbackRequestId)) {
-      return;
-    }
+  const outcome = await attemptPlayback({
+    play: () => player.play(),
+    requestId,
+    getCurrentRequestId: () => playbackRequestId,
+    isAutoplayAttempt,
+  });
 
-    const outcome = classifyPlaybackError(error.name, isAutoplayAttempt);
-    if (outcome.kind === "ignored") {
-      return;
-    }
-
-    autoplayGate.hidden = !outcome.showGate;
-    status.textContent = outcome.message;
+  if (outcome.kind === "started" || outcome.kind === "ignored") {
+    return;
   }
+
+  autoplayGate.hidden = !outcome.showGate;
+  status.textContent = outcome.message;
 }
 
 function renderPlaylist() {
