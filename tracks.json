@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "tracks": [
+    {
+      "id": "hou-lai-wo-men-dou-cheng-wei-le-zi-ji",
+      "title": "后来我们都成为了自己",
+      "subtitle": "女声版",
+      "file": "audio/后来我们都成为了自己.wav",
+      "format": "WAV",
+      "duration_seconds": 238.64
+    }
+  ]
+}

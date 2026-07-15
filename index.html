@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#090d18">
+    <meta name="description" content="后来我们都成为了自己 — 在线音乐播放器">
+    <title>后来我们都成为了自己</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <main class="page-shell">
+      <section class="player-card" aria-labelledby="track-title">
+        <header class="hero">
+          <p class="eyebrow">MUSIC · ORIGINAL SONG</p>
+          <div class="artwork" aria-hidden="true">
+            <span class="artwork-ring artwork-ring--outer"></span>
+            <span class="artwork-ring artwork-ring--inner"></span>
+            <span class="artwork-core"></span>
+          </div>
+          <div class="track-copy">
+            <h1 id="track-title">后来我们都成为了自己</h1>
+            <p id="track-subtitle">正在加载播放列表…</p>
+          </div>
+        </header>
+
+        <button class="autoplay-gate" id="autoplay-gate" type="button" hidden>
+          <span class="play-symbol" aria-hidden="true">▶</span>
+          <span>点击播放</span>
+        </button>
+
+        <audio id="player" controls autoplay preload="auto" playsinline></audio>
+
+        <div class="transport" aria-label="播放切换">
+          <button id="previous-track" type="button" aria-label="上一首">上一首</button>
+          <p id="playback-status" role="status" aria-live="polite">正在尝试自动播放…</p>
+          <button id="next-track" type="button" aria-label="下一首">下一首</button>
+        </div>
+
+        <section class="playlist-section" aria-labelledby="playlist-title">
+          <div class="section-heading">
+            <h2 id="playlist-title">播放列表</h2>
+            <span id="track-count">0 首</span>
+          </div>
+          <ol id="playlist" class="playlist"></ol>
+        </section>
+
+        <noscript>请启用 JavaScript 后播放音乐。</noscript>
+      </section>
+    </main>
+  </body>
+</html>
