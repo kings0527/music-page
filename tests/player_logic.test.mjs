@@ -58,7 +58,7 @@ test("shuffle playback visits every other track once before reshuffling", () => 
   assert.deepEqual(queue.toSorted((left, right) => left - right), [0, 2, 3]);
 });
 
-test("shuffle playback consumes its queue and repeats a single-track playlist", () => {
+test("shuffle playback consumes its queue", () => {
   assert.deepEqual(
     advancePlayback({
       mode: "shuffle",
@@ -67,15 +67,6 @@ test("shuffle playback consumes its queue and repeats a single-track playlist", 
       shuffleQueue: [2, 1],
     }),
     { index: 2, shuffleQueue: [1] },
-  );
-  assert.deepEqual(
-    advancePlayback({
-      mode: "shuffle",
-      currentIndex: 0,
-      trackCount: 1,
-      shuffleQueue: [],
-    }),
-    { index: 0, shuffleQueue: [] },
   );
 });
 

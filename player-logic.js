@@ -54,10 +54,6 @@ export function advancePlayback({
     };
   }
 
-  if (trackCount === 1) {
-    return { index: 0, shuffleQueue: [] };
-  }
-
   const availableQueue = shuffleQueue.filter(
     (index, position, queue) =>
       index >= 0 &&

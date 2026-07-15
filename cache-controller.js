@@ -14,7 +14,10 @@ export function createAudioCacheController({
   let playbackSource = null;
   let generation = 0;
   let repairedSha = null;
+  let cacheTriggerController = null;
+  let pausedCacheTimer = null;
   const downloads = new Map();
+  const sourceChecks = new Map();
 
   const registration = registerServiceWorker().catch((error) => {
     status.textContent = `本地缓存不可用：${error.message}`;
@@ -129,6 +132,7 @@ export function createAudioCacheController({
         worker,
         messageFor(cachedPreferred, "CHECK_TRACK"),
       );
+      sourceChecks.set(sourceKey(cachedPreferred), result);
       return result.cached ? cachedPreferred : fallback;
     } catch {
       return fallback;
@@ -154,10 +158,14 @@ export function createAudioCacheController({
 
       try {
         status.textContent = `正在检查本地版本 ${index + 1}/${sources.length}…`;
-        const result = await sendServiceWorkerMessage(
-          worker,
-          messageFor(candidate, "CHECK_TRACK"),
-        );
+        const key = sourceKey(candidate);
+        const result = sourceChecks.has(key)
+          ? sourceChecks.get(key)
+          : await sendServiceWorkerMessage(
+              worker,
+              messageFor(candidate, "CHECK_TRACK"),
+            );
+        sourceChecks.delete(key);
         if (!isCurrent(candidate, currentGeneration)) {
           return;
         }
@@ -195,17 +203,61 @@ export function createAudioCacheController({
       : `已缓存 ${cachedCount}/${sources.length} 个版本，失败项将在下次打开时重试`;
   }
 
+  function clearCacheTrigger() {
+    cacheTriggerController?.abort();
+    cacheTriggerController = null;
+    if (pausedCacheTimer !== null) {
+      window.clearTimeout(pausedCacheTimer);
+      pausedCacheTimer = null;
+    }
+  }
+
+  function scheduleAutoCache(currentGeneration) {
+    clearCacheTrigger();
+    cacheTriggerController = new AbortController();
+    const { signal } = cacheTriggerController;
+    let started = false;
+
+    const start = () => {
+      if (started || currentGeneration !== generation) {
+        return;
+      }
+      started = true;
+      clearCacheTrigger();
+      void cacheAll(currentGeneration);
+    };
+    const startNearEnd = () => {
+      if (
+        Number.isFinite(media.duration) &&
+        media.duration > 0 &&
+        media.currentTime >= media.duration - 3
+      ) {
+        start();
+      }
+    };
+
+    media.addEventListener("canplaythrough", start, { once: true, signal });
+    media.addEventListener("pause", start, { once: true, signal });
+    media.addEventListener("timeupdate", startNearEnd, { signal });
+    pausedCacheTimer = window.setTimeout(() => {
+      pausedCacheTimer = null;
+      if (media.paused) {
+        start();
+      }
+    }, 2000);
+  }
+
   function setSources(nextSources, nextPlaybackSource) {
     generation += 1;
     sources = uniqueSources(nextSources);
     playbackSource = nextPlaybackSource;
     repairedSha = null;
-    status.textContent = "正在准备自动缓存…";
+    status.textContent = "将在播放稳定后自动缓存…";
     if (navigator.storage?.persist) {
       void navigator.storage.persist();
     }
     if (sources.length > 0) {
-      void cacheAll(generation);
+      scheduleAutoCache(generation);
     }
   }
 
