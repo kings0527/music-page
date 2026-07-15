@@ -205,7 +205,6 @@ audio {
 }
 
 .mode-switch button,
-.file-actions button,
 .file-actions a {
   min-height: 36px;
   padding: 8px 12px;
@@ -224,15 +223,9 @@ audio {
   color: #f2d59d;
 }
 
-.file-actions button,
 .file-actions a {
   border-color: rgb(255 255 255 / 12%);
   background: rgb(255 255 255 / 5%);
-}
-
-.file-actions button:disabled {
-  cursor: wait;
-  opacity: 0.55;
 }
 
 .helper-row {

@@ -1,7 +1,8 @@
 import { cacheMetadataMatches, parseByteRange } from "./cache-logic.js";
 
-const SHELL_CACHE = "music-shell-v3";
+const SHELL_CACHE = "music-shell-v4";
 const AUDIO_CACHE = "music-audio-v1";
+const AUDIO_DOWNLOADS = new Map();
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -217,6 +218,18 @@ async function checkTrack(message) {
 
 async function cacheTrack(message) {
   const url = validateMessageTrack(message);
+  const downloadKey = `${url.href}:${message.bytes}:${message.sha256}`;
+  if (AUDIO_DOWNLOADS.has(downloadKey)) {
+    return AUDIO_DOWNLOADS.get(downloadKey);
+  }
+  const download = cacheTrackOnce(message, url).finally(() => {
+    AUDIO_DOWNLOADS.delete(downloadKey);
+  });
+  AUDIO_DOWNLOADS.set(downloadKey, download);
+  return download;
+}
+
+async function cacheTrackOnce(message, url) {
   const cache = await caches.open(AUDIO_CACHE);
   const expected = { bytes: message.bytes, sha256: message.sha256 };
   const existing = await cache.match(url.href);

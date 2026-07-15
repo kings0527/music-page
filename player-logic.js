@@ -6,8 +6,11 @@ export function formatDuration(durationSeconds) {
 }
 
 export function getNextTrackIndex({ mode, currentIndex, trackCount }) {
+  if (trackCount <= 0) {
+    return null;
+  }
   if (mode === "loop") {
-    return trackCount > 0 ? (currentIndex + 1) % trackCount : null;
+    return (currentIndex + 1) % trackCount;
   }
 
   if (mode !== "order") {
@@ -41,6 +44,9 @@ export function advancePlayback({
   shuffleQueue = [],
   random = Math.random,
 }) {
+  if (trackCount === 1) {
+    return { index: 0, shuffleQueue: [] };
+  }
   if (mode !== "shuffle") {
     return {
       index: getNextTrackIndex({ mode, currentIndex, trackCount }),

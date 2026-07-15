@@ -35,6 +35,19 @@ test("loop playback wraps from the final track to the first", () => {
   );
 });
 
+test("a single-track playlist repeats in every playback mode", () => {
+  for (const mode of ["order", "loop", "shuffle"]) {
+    assert.deepEqual(
+      advancePlayback({
+        mode,
+        currentIndex: 0,
+        trackCount: 1,
+      }),
+      { index: 0, shuffleQueue: [] },
+    );
+  }
+});
+
 test("shuffle playback visits every other track once before reshuffling", () => {
   const queue = createShuffleQueue({
     trackCount: 4,

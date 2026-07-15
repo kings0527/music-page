@@ -27,7 +27,6 @@ const trackCount = document.querySelector("#track-count");
 const previousButton = document.querySelector("#previous-track");
 const nextButton = document.querySelector("#next-track");
 const modeButtons = [...document.querySelectorAll("[data-play-mode]")];
-const cacheButton = document.querySelector("#cache-track");
 const cacheStatus = document.querySelector("#cache-status");
 const masterDownload = document.querySelector("#master-download");
 const lyricsContainer = document.querySelector("#lyrics");
@@ -39,6 +38,7 @@ let playbackRequestId = 0;
 let playMode = readStoredMode();
 let shuffleQueue = [];
 let shuffleHistory = [];
+let trackSelectionId = 0;
 
 const lyricsController = createLyricsController({
   container: lyricsContainer,
@@ -46,7 +46,6 @@ const lyricsController = createLyricsController({
   media: player,
 });
 const cacheController = createAudioCacheController({
-  button: cacheButton,
   status: cacheStatus,
   media: player,
   onPlaybackStatus: (message) => {
@@ -103,26 +102,34 @@ function updatePlaylistSelection() {
   nextButton.disabled = !hasSeveralTracks;
 }
 
-function chooseStreamSource(track) {
+function choosePlayableSource(sources) {
   return (
-    track.sources.find((source) => player.canPlayType(source.type) !== "") ??
-    track.sources[0]
+    sources.find((source) => player.canPlayType(source.type) !== "") ??
+    sources[0]
   );
 }
 
-function setTrackSources(track) {
+function setTrackSources(sources) {
   player.removeAttribute("src");
-  const sourceElements = track.sources.map((source) => {
+  const sourceElements = sources.map((source) => {
     const element = document.createElement("source");
     element.src = versionedSourceUrl(source);
     element.type = source.type;
     return element;
   });
   player.replaceChildren(...sourceElements);
-  return chooseStreamSource(track);
+  return choosePlayableSource(sources);
 }
 
-function selectTrack(index, { resetShuffle = true } = {}) {
+function prioritizeSource(sources, preferredSource) {
+  return [
+    preferredSource,
+    ...sources.filter((source) => source.sha256 !== preferredSource.sha256),
+  ];
+}
+
+async function selectTrack(index, { resetShuffle = true } = {}) {
+  const selectionId = ++trackSelectionId;
   playbackRequestId += 1;
   currentIndex = (index + tracks.length) % tracks.length;
   if (resetShuffle) {
@@ -133,15 +140,33 @@ function selectTrack(index, { resetShuffle = true } = {}) {
   title.textContent = track.title;
   subtitle.textContent = `${track.subtitle} · ${track.format} · ${formatDuration(track.duration_seconds)}`;
   document.title = track.title;
-  const streamSource = setTrackSources(track);
-  player.load();
+  const compressedSource = choosePlayableSource(track.sources);
 
-  masterDownload.href = track.master.file;
+  masterDownload.href = versionedSourceUrl(track.master);
   masterDownload.download = track.master.file.split("/").at(-1);
   masterDownload.hidden = false;
   updatePlaylistSelection();
   void lyricsController.load(track);
-  cacheController.setSource(streamSource);
+
+  const initialSource = await cacheController.chooseInitialSource(
+    track.master,
+    compressedSource,
+  );
+  if (selectionId !== trackSelectionId) {
+    return false;
+  }
+
+  const playbackSources = prioritizeSource(
+    [...track.sources, track.master],
+    initialSource,
+  );
+  const playbackSource = setTrackSources(playbackSources);
+  player.load();
+  cacheController.setSources(
+    [compressedSource, track.master],
+    playbackSource,
+  );
+  return true;
 }
 
 async function requestPlayback(isAutoplayAttempt = false) {
@@ -206,8 +231,9 @@ async function changeTrack(direction) {
   }
   shuffleQueue = destination.shuffleQueue;
   shuffleHistory = destination.shuffleHistory;
-  selectTrack(destination.index, { resetShuffle: false });
-  await requestPlayback();
+  if (await selectTrack(destination.index, { resetShuffle: false })) {
+    await requestPlayback();
+  }
 }
 
 playlist.addEventListener("click", async (event) => {
@@ -215,8 +241,9 @@ playlist.addEventListener("click", async (event) => {
   if (!button) {
     return;
   }
-  selectTrack(Number(button.dataset.index));
-  await requestPlayback();
+  if (await selectTrack(Number(button.dataset.index))) {
+    await requestPlayback();
+  }
 });
 
 modeButtons.forEach((button) => {
@@ -286,11 +313,17 @@ player.addEventListener("ended", async () => {
     status.textContent = "顺序播放结束";
     return;
   }
+  if (tracks.length === 1 && next.index === currentIndex) {
+    player.currentTime = 0;
+    await requestPlayback();
+    return;
+  }
   if (playMode === "shuffle") {
     shuffleHistory.push(previousIndex);
   }
-  selectTrack(next.index, { resetShuffle: false });
-  await requestPlayback();
+  if (await selectTrack(next.index, { resetShuffle: false })) {
+    await requestPlayback();
+  }
 });
 
 player.addEventListener("error", () => {
@@ -318,9 +351,11 @@ async function initializePlayer() {
     }
 
     renderPlaylist();
+    player.loop = tracks.length === 1;
     setPlayMode(playMode, { announce: false });
-    selectTrack(0);
-    await requestPlayback(true);
+    if (await selectTrack(0)) {
+      await requestPlayback(true);
+    }
   } catch (error) {
     status.textContent = error.message;
     subtitle.textContent = "播放器加载失败";

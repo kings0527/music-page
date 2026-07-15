@@ -10,7 +10,11 @@ export async function registerServiceWorker() {
   return navigator.serviceWorker.ready;
 }
 
-export function sendServiceWorkerMessage(registration, message, timeoutMs = 180000) {
+export function sendServiceWorkerMessage(
+  registration,
+  message,
+  timeoutMs = 1800000,
+) {
   const worker =
     registration?.active ?? registration?.waiting ?? registration?.installing;
   if (!worker) {

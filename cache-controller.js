@@ -5,31 +5,42 @@ import {
 } from "./cache-client.js";
 
 export function createAudioCacheController({
-  button,
   status,
   media,
   onPlaybackStatus,
   onResumePlayback,
 }) {
-  let source = null;
-  let busy = false;
-  let cached = false;
-  let requestId = 0;
+  let sources = [];
+  let playbackSource = null;
+  let generation = 0;
   let repairedSha = null;
+  const downloads = new Map();
 
   const registration = registerServiceWorker().catch((error) => {
     status.textContent = `本地缓存不可用：${error.message}`;
     return null;
   });
 
-  function isCurrent(candidate) {
-    return candidate && source?.sha256 === candidate.sha256;
+  function sourceKey(source) {
+    return `${source.file}:${source.sha256}`;
   }
 
-  function updateButton() {
-    button.dataset.cached = cached ? "true" : "false";
-    button.textContent = cached ? "重新缓存" : "缓存本曲";
-    button.disabled = busy || !source;
+  function uniqueSources(nextSources) {
+    const seen = new Set();
+    return nextSources.filter((source) => {
+      if (!source?.file || !source?.sha256 || seen.has(sourceKey(source))) {
+        return false;
+      }
+      seen.add(sourceKey(source));
+      return true;
+    });
+  }
+
+  function isCurrent(candidate, currentGeneration = generation) {
+    return (
+      currentGeneration === generation &&
+      sources.some((source) => sourceKey(source) === sourceKey(candidate))
+    );
   }
 
   function messageFor(candidate, type, { force = false } = {}) {
@@ -46,17 +57,45 @@ export function createAudioCacheController({
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   }
 
+  function describeSource(source) {
+    if (source.type === "audio/wav") {
+      return `WAV ${formatBytes(source.bytes)}`;
+    }
+    if (source.type === "audio/mp4") {
+      return `AAC ${formatBytes(source.bytes)}`;
+    }
+    if (source.type === "audio/mpeg") {
+      return `MP3 ${formatBytes(source.bytes)}`;
+    }
+    return formatBytes(source.bytes);
+  }
+
+  async function downloadSource(worker, candidate, { force = false } = {}) {
+    const key = sourceKey(candidate);
+    if (downloads.has(key)) {
+      return downloads.get(key);
+    }
+
+    const download = sendServiceWorkerMessage(
+      worker,
+      messageFor(candidate, "CACHE_TRACK", { force }),
+    ).finally(() => downloads.delete(key));
+    downloads.set(key, download);
+    return download;
+  }
+
   function reloadMedia(candidate, { resumeTime = 0, resume = false } = {}) {
-    if (!isCurrent(candidate)) {
+    if (!sources.some((source) => sourceKey(source) === sourceKey(candidate))) {
       return;
     }
+    playbackSource = candidate;
+
     media.addEventListener(
       "loadedmetadata",
       () => {
         if (Number.isFinite(resumeTime) && resumeTime > 0) {
           media.currentTime = Math.min(resumeTime, media.duration || resumeTime);
         }
-        status.textContent = `已缓存 ${formatBytes(candidate.bytes)}`;
         if (resume) {
           onResumePlayback();
         }
@@ -69,136 +108,136 @@ export function createAudioCacheController({
     media.load();
   }
 
-  async function refresh(candidate) {
-    const currentRequestId = ++requestId;
-    busy = true;
-    cached = false;
-    status.textContent = "正在检查本地缓存…";
-    updateButton();
+  function currentPlaybackSource() {
+    if (!media.currentSrc) {
+      return playbackSource;
+    }
+    const currentUrl = new URL(media.currentSrc, window.location.href);
+    currentUrl.searchParams.delete("music-reload");
+    return sources.find(
+      (candidate) => versionedSourceUrl(candidate) === currentUrl.href,
+    ) ?? playbackSource;
+  }
 
+  async function chooseInitialSource(cachedPreferred, fallback) {
     try {
       const worker = await registration;
       if (!worker) {
-        throw new Error("浏览器不支持离线缓存");
+        return fallback;
       }
       const result = await sendServiceWorkerMessage(
         worker,
-        messageFor(candidate, "CHECK_TRACK"),
+        messageFor(cachedPreferred, "CHECK_TRACK"),
       );
-      if (currentRequestId !== requestId || !isCurrent(candidate)) {
+      return result.cached ? cachedPreferred : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  async function cacheAll(currentGeneration) {
+    const worker = await registration;
+    if (!worker || currentGeneration !== generation) {
+      if (!worker && currentGeneration === generation) {
+        status.textContent = "浏览器不支持离线缓存";
+      }
+      return;
+    }
+
+    let cachedCount = 0;
+    let failureCount = 0;
+
+    for (const [index, candidate] of sources.entries()) {
+      if (!isCurrent(candidate, currentGeneration)) {
         return;
       }
-      if (result.repairRequired) {
-        const resumeTime = media.currentTime;
-        const resume = !media.paused && !media.ended;
-        if (await cacheSource(candidate, { force: true, repair: true })) {
-          repairedSha = candidate.sha256;
-          reloadMedia(candidate, { resumeTime, resume });
+
+      try {
+        status.textContent = `正在检查本地版本 ${index + 1}/${sources.length}…`;
+        const result = await sendServiceWorkerMessage(
+          worker,
+          messageFor(candidate, "CHECK_TRACK"),
+        );
+        if (!isCurrent(candidate, currentGeneration)) {
+          return;
         }
-        return;
-      }
-      cached = result.cached;
-      status.textContent = cached
-        ? `已缓存 ${formatBytes(result.bytes)}`
-        : "尚未缓存";
-    } catch (error) {
-      if (currentRequestId === requestId && isCurrent(candidate)) {
-        cached = false;
-        status.textContent = error.message;
-      }
-    } finally {
-      if (currentRequestId === requestId && isCurrent(candidate)) {
-        busy = false;
-        updateButton();
+
+        if (!result.cached) {
+          const resumeTime = media.currentTime;
+          const resume = !media.paused && !media.ended;
+          status.textContent = `正在自动缓存 ${describeSource(candidate)}（${index + 1}/${sources.length}）…`;
+          await downloadSource(worker, candidate, {
+            force: result.repairRequired,
+          });
+          if (!isCurrent(candidate, currentGeneration)) {
+            return;
+          }
+          if (
+            result.repairRequired &&
+            playbackSource?.sha256 === candidate.sha256 &&
+            repairedSha !== candidate.sha256
+          ) {
+            repairedSha = candidate.sha256;
+            reloadMedia(candidate, { resumeTime, resume });
+          }
+        }
+        cachedCount += 1;
+      } catch {
+        failureCount += 1;
       }
     }
-  }
 
-  async function cacheSource(candidate, { force = false, repair = false } = {}) {
-    const currentRequestId = ++requestId;
-    const previouslyCached = cached;
-    busy = true;
-    status.textContent = repair
-      ? "音频异常，正在重新下载…"
-      : "正在下载到本地…";
-    updateButton();
-
-    try {
-      const worker = await registration;
-      if (!worker) {
-        throw new Error("浏览器不支持离线缓存");
-      }
-      const result = await sendServiceWorkerMessage(
-        worker,
-        messageFor(candidate, "CACHE_TRACK", { force }),
-      );
-      if (currentRequestId !== requestId || !isCurrent(candidate)) {
-        return false;
-      }
-      cached = true;
-      status.textContent = repair
-        ? "音频已重新下载，正在恢复…"
-        : `已缓存 ${formatBytes(result.bytes)}`;
-      return true;
-    } catch (error) {
-      if (currentRequestId === requestId && isCurrent(candidate)) {
-        cached = previouslyCached;
-        status.textContent = previouslyCached
-          ? `刷新失败，已保留旧缓存：${error.message}`
-          : error.message;
-      }
-      return false;
-    } finally {
-      if (currentRequestId === requestId && isCurrent(candidate)) {
-        busy = false;
-        updateButton();
-      }
+    if (currentGeneration !== generation) {
+      return;
     }
+    status.textContent = failureCount === 0
+      ? `已自动缓存 ${cachedCount} 个版本`
+      : `已缓存 ${cachedCount}/${sources.length} 个版本，失败项将在下次打开时重试`;
   }
 
-  function setSource(nextSource) {
-    source = nextSource;
+  function setSources(nextSources, nextPlaybackSource) {
+    generation += 1;
+    sources = uniqueSources(nextSources);
+    playbackSource = nextPlaybackSource;
     repairedSha = null;
-    cached = false;
-    updateButton();
-    if (source) {
-      void refresh(source);
+    status.textContent = "正在准备自动缓存…";
+    if (navigator.storage?.persist) {
+      void navigator.storage.persist();
+    }
+    if (sources.length > 0) {
+      void cacheAll(generation);
     }
   }
 
   async function repairAndResume() {
-    const candidate = source;
+    const candidate = currentPlaybackSource();
     if (!candidate || repairedSha === candidate.sha256) {
-      onPlaybackStatus("音频加载失败，请点击“重新缓存”后重试");
+      onPlaybackStatus("音频加载失败，将在下次打开时重新缓存");
       return;
     }
 
     repairedSha = candidate.sha256;
+    const currentGeneration = generation;
     const resumeTime = media.currentTime;
-    if (!(await cacheSource(candidate, { force: true, repair: true }))) {
-      if (isCurrent(candidate)) {
-        onPlaybackStatus("音频重新下载失败，请稍后重试");
-      }
-      return;
-    }
-    if (!isCurrent(candidate)) {
-      return;
-    }
+    onPlaybackStatus("音频异常，正在重新下载并恢复…");
 
-    onPlaybackStatus("音频已重新下载，正在恢复播放…");
-    reloadMedia(candidate, { resumeTime, resume: true });
+    try {
+      const worker = await registration;
+      if (!worker) {
+        throw new Error("浏览器不支持离线缓存");
+      }
+      await downloadSource(worker, candidate, { force: true });
+      if (!isCurrent(candidate, currentGeneration)) {
+        return;
+      }
+      onPlaybackStatus("音频已重新下载，正在恢复播放…");
+      reloadMedia(candidate, { resumeTime, resume: true });
+    } catch {
+      if (currentGeneration === generation) {
+        onPlaybackStatus("音频重新下载失败，将在下次打开时重试");
+      }
+    }
   }
 
-  button.addEventListener("click", () => {
-    if (busy || !source) {
-      return;
-    }
-    if (navigator.storage?.persist) {
-      void navigator.storage.persist();
-    }
-    void cacheSource(source, { force: cached });
-  });
-
-  updateButton();
-  return { setSource, repairAndResume };
+  return { chooseInitialSource, setSources, repairAndResume };
 }
