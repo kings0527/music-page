@@ -29,6 +29,7 @@
 
 ```sh
 python3 -m unittest -v tests/test_site.py
+node --test tests/player_logic.test.mjs
 python3 -m http.server 8000
 ```
 

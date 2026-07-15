@@ -1,0 +1,8 @@
+{
+  "name": "music-page",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/player_logic.test.mjs"
+  }
+}

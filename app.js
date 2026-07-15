@@ -1,3 +1,9 @@
+import {
+  classifyPlaybackError,
+  formatDuration,
+  isCurrentPlaybackRequest,
+} from "./player-logic.js";
+
 const player = document.querySelector("#player");
 const playerCard = document.querySelector(".player-card");
 const title = document.querySelector("#track-title");
@@ -11,13 +17,7 @@ const nextButton = document.querySelector("#next-track");
 
 let tracks = [];
 let currentIndex = 0;
-
-function formatDuration(durationSeconds) {
-  const totalSeconds = Math.round(durationSeconds);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = String(totalSeconds % 60).padStart(2, "0");
-  return `${minutes}:${seconds}`;
-}
+let playbackRequestId = 0;
 
 function updatePlaylistSelection() {
   playlist.querySelectorAll("button").forEach((button, index) => {
@@ -30,6 +30,7 @@ function updatePlaylistSelection() {
 }
 
 function selectTrack(index) {
+  playbackRequestId += 1;
   currentIndex = (index + tracks.length) % tracks.length;
   const track = tracks[currentIndex];
   title.textContent = track.title;
@@ -41,15 +42,21 @@ function selectTrack(index) {
 }
 
 async function requestPlayback(isAutoplayAttempt = false) {
+  const requestId = ++playbackRequestId;
   try {
     await player.play();
-    autoplayGate.hidden = true;
-    status.textContent = "正在播放";
   } catch (error) {
-    autoplayGate.hidden = false;
-    status.textContent = isAutoplayAttempt
-      ? "浏览器需要你点一下才能播放"
-      : "暂时无法播放，请重试";
+    if (!isCurrentPlaybackRequest(requestId, playbackRequestId)) {
+      return;
+    }
+
+    const outcome = classifyPlaybackError(error.name, isAutoplayAttempt);
+    if (outcome.kind === "ignored") {
+      return;
+    }
+
+    autoplayGate.hidden = !outcome.showGate;
+    status.textContent = outcome.message;
   }
 }
 
@@ -102,10 +109,14 @@ autoplayGate.addEventListener("click", () => requestPlayback());
 previousButton.addEventListener("click", () => changeTrack(-1));
 nextButton.addEventListener("click", () => changeTrack(1));
 
-player.addEventListener("play", () => {
+player.addEventListener("playing", () => {
   autoplayGate.hidden = true;
   playerCard.classList.add("is-playing");
   status.textContent = "正在播放";
+});
+
+player.addEventListener("waiting", () => {
+  status.textContent = "正在缓冲…";
 });
 
 player.addEventListener("pause", () => {
@@ -122,6 +133,13 @@ player.addEventListener("ended", async () => {
   } else {
     status.textContent = "播放结束";
   }
+});
+
+player.addEventListener("error", () => {
+  playbackRequestId += 1;
+  autoplayGate.hidden = true;
+  playerCard.classList.remove("is-playing");
+  status.textContent = "音频加载失败，请稍后重试";
 });
 
 async function initializePlayer() {

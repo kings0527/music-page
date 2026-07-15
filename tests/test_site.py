@@ -12,6 +12,7 @@ class MusicPageTests(unittest.TestCase):
             "index.html",
             "styles.css",
             "app.js",
+            "player-logic.js",
             "tracks.json",
             ".github/workflows/pages.yml",
         ):
@@ -46,9 +47,11 @@ class MusicPageTests(unittest.TestCase):
         javascript = (ROOT / "app.js").read_text(encoding="utf-8")
         self.assertIn('<audio id="player"', html)
         self.assertIn('href="styles.css"', html)
-        self.assertIn('src="app.js"', html)
+        self.assertIn('type="module" src="app.js"', html)
         self.assertIn('fetch("tracks.json")', javascript)
         self.assertIn("player.play()", javascript)
+        self.assertIn('player.addEventListener("error"', javascript)
+        self.assertIn("playbackRequestId", javascript)
 
     def test_pages_workflow_downloads_lfs_and_deploys(self) -> None:
         workflow = (ROOT / ".github/workflows/pages.yml").read_text(encoding="utf-8")
@@ -56,6 +59,7 @@ class MusicPageTests(unittest.TestCase):
         self.assertIn("actions/configure-pages@v5", workflow)
         self.assertIn("actions/upload-pages-artifact@v3", workflow)
         self.assertIn("actions/deploy-pages@v5", workflow)
+        self.assertIn("node --test tests/player_logic.test.mjs", workflow)
 
 
 if __name__ == "__main__":

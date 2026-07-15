@@ -30,12 +30,14 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Validate player and playlist
-        run: python3 -m unittest -v tests/test_site.py
+        run: |
+          python3 -m unittest -v tests/test_site.py
+          node --test tests/player_logic.test.mjs
 
       - name: Prepare static site
         run: |
           mkdir -p _site/audio
-          cp index.html styles.css app.js tracks.json _site/
+          cp index.html styles.css app.js player-logic.js tracks.json _site/
           cp -R audio/. _site/audio/
 
       - name: Upload Pages artifact
